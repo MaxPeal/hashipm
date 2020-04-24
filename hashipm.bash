@@ -22,6 +22,17 @@ readonly NAME="hashipm"
 readonly VERSION="0.6.3"
 INSTALL_PATH="/usr/local/bin"
 
+bash_version=${BASH_VERSION/.*}
+sys_locale=${LANG:-C}
+XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-${HOME}/.config}
+#PATH=$PATH:/usr/xpg4/bin:/usr/sbin:/sbin:/usr/etc:/usr/libexec
+reset='\e[0m'
+shopt -s nocasematch
+
+# Speed up script by not using unicode.
+LC_ALL=C
+LANG=C
+
 spinner() {
     local pid=$1
     local delay=0.1
@@ -69,15 +80,36 @@ _get() {
     fi
 
     local os
-    case "$OSTYPE" in
+    #case "$OSTYPE" in
+    case "$(uname -s)" in
         darwin*)  os="darwin" ;;
         freebsd*) os="freebsd" ;;
-        linux*)   os="linux" ;;
         netbsd*)  os="netbsd" ;;
         openbsd*) os="openbsd" ;;
         solaris*) os="solaris" ;;
-    esac
+        sunos*)  os="solaris" ;;
+        cygwin*) os="windows" ;;
+        CYGWIN*|MSYS*|MINGW*) os="windows" ;;
+        windows*|win*|dos*) os="windows" ;;
+        linux*)   os="linux" ;;
+        GNU*)   os="linux" ;;
+        ;;
 
+        *BSD|DragonFly|Bitrig)
+            : BSD
+        ;;
+
+        CYGWIN*|MSYS*|MINGW*)
+            : Windows
+        ;;
+
+        *)
+            printf '%s\n' "Unknown OS detected: '$(uname -s)', aborting..." >&2
+            printf '%s\n' "Open an issue on GitHub to add support for your OS." >&2
+            exit 1
+        ;;
+    esac
+        
     if [ -z "$os" ]; then
         echo "Failed to determine the operating system" 1>&2
         exit 7
@@ -87,10 +119,16 @@ _get() {
     case $(uname -m) in
         i386)   architecture="386" ;;
         i686)   architecture="386" ;;
+        x86)   architecture="386" ;;
         x86_64) architecture="amd64" ;;
+        s390*) architecture="s390x" ;;
         arm)    dpkg --print-architecture | grep -q "arm64" && architecture="arm64" || architecture="arm" ;;
+        powerpc*) architecture="ppc64le" ;;
+        *mipsle*) architecture="mipsle" ;;
+        *mips64) architecture="mips64" ;;
+        mips) architecture="mips" ;;
     esac
-
+    
     if [ -z "$architecture" ]; then
         echo "Failed to determine the architecture" 1>&2
         exit 8
@@ -101,11 +139,14 @@ _get() {
         exit 9
     fi
 
-    local version=$(curl --fail --silent --location "https://api.github.com/repos/hashicorp/$package/tags" |
-        grep '"name":' |
-        sed -E 's/.*"([^"]+)".*/\1/' |
-        head -n 1 |
-        tr -d 'v')
+    #local version=$(curl --fail --silent --location "https://api.github.com/repos/hashicorp/$package/tags" |
+    #    grep '"name":' |
+    #    sed -E 's/.*"([^"]+)".*/\1/' |
+    #    head -n 1 |
+    #    tr -d 'v')
+    local version=$(curl --fail --silent --location "https://checkpoint-api.hashicorp.com/v1/check/$package" |
+    grep '"current_version":'
+    )
 
     if [ -z "$version" ]; then
         echo "Failed to determine the latest version of '$package'" 1>&2
